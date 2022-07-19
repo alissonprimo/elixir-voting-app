@@ -24,7 +24,7 @@ defmodule Election do
     %{election | candidates: candidates, next_id: election.next_id + 1}
   end
 
-  def update(election, ["v" <> _ , args]), do: update(election, Integer.parse(args))
+  def update(election, ["v" <> _ | args]), do: update(election, Integer.parse(List.to_string(args)))
 
   def update(election, {id, _}) do
     candidates = Enum.map(election.candidates, fn candidate -> maybe_increment_votes(candidate, id == candidate.id) end)
@@ -33,11 +33,11 @@ defmodule Election do
 
   def update(election, _errors), do: election
 
-  defp maybe_increment_votes(candidate, _id_matched = true) do
+  defp maybe_increment_votes(candidate, _increment_vote = true) do
     %{candidate | votes: candidate.votes + 1}
   end
 
-  defp maybe_increment_votes(candidate, _id_matched = false), do: candidate
+  defp maybe_increment_votes(candidate, _increment_vote = false), do: candidate
 
   def view(election) do
     [
