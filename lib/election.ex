@@ -11,6 +11,14 @@ defmodule Election do
 
   def run(:quit), do: :quit
 
+  def run({:invalid_command, election}) do
+    [IO.ANSI.light_red(), "Invalid Command", IO.ANSI.default_color()]
+    |> IO.write()
+
+    Process.sleep(1000)
+    election |> run()
+  end
+
   def run(election = %Election{}) do
     [IO.ANSI.clear(), IO.ANSI.cursor(0, 0)]
     |> IO.write()
@@ -50,7 +58,7 @@ defmodule Election do
     update(election, String.split(cmd))
   end
 
-  def update(election, ["a" <> _ | args]) do
+  def update(election, ["a" <> _ | args]) when args != [] do
     name = Enum.join(args, " ")
     candidate = Candidate.new(election.next_id, name)
     candidates = [candidate | election.candidates]
@@ -66,7 +74,9 @@ defmodule Election do
     vote(election, Integer.parse(id))
   end
 
-   def update(_election, ["q" <> _]), do: :quit
+  def update(_election, ["q" <> _]), do: :quit
+
+  def update(election, _), do: {:invalid_command, election}
 
   defp vote(election, {id, ""}) do
     candidates = Enum.map(election.candidates, &maybe_inc_vote(&1, id))
