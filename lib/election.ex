@@ -1,20 +1,53 @@
 defmodule Election do
   defstruct(
-    name: "Mayor",
-    candidates: [
-      Candidate.new(1, "Alisson Primo"),
-      Candidate.new(2, "Hellen Primo")
-    ],
-    next_id: 3
+    name: "",
+    candidates: [ ],
+    next_id: 1
   )
 
-  def update(election, cmd) when is_binary(cmd) do
-    update(election, String.split(cmd, " ", trim: true))
+  def run() do
+    %Election{} |> run()
   end
 
-  def update(election, ["n" <> _ | args]) do
-    name = Enum.join(args, " ")
-    %{election | name: name}
+  def run(:quit), do: :quit
+
+  def run(election = %Election{}) do
+    [IO.ANSI.clear(), IO.ANSI.cursor(0, 0)]
+    |> IO.write()
+
+    election
+    |> view
+    |> IO.write()
+
+    command = IO.gets(">")
+
+    election
+    |> update(command)
+    |> run()
+  end
+
+  @doc """
+  Updates Election Struct, based on provided command.
+  ## Parameters
+    - election: Election Struct
+    - cmd: String based command. Each command can be shortened to what's shown
+      in parenthesis.
+      - (n)ame command updates the election name
+        - example: "n Mayor"
+      - (a)dd command adds a new candidate
+        - example: "a Will Ferrell"
+      - (v)ote command increments the vote count for candidate
+        - example: "v 1"
+      - (q)uit command returns a quit atom
+        - example: "q"
+  Returns `Election` struct
+  ## Examples
+      iex> %Election{} |> Election.update("n Mayor")
+      %Election{name: "Mayor"}
+
+  """
+  def update(election, cmd) when is_binary(cmd) do
+    update(election, String.split(cmd))
   end
 
   def update(election, ["a" <> _ | args]) do
@@ -24,20 +57,53 @@ defmodule Election do
     %{election | candidates: candidates, next_id: election.next_id + 1}
   end
 
-  def update(election, ["v" <> _ | args]), do: update(election, Integer.parse(List.to_string(args)))
-
-  def update(election, {id, _}) do
-    candidates = Enum.map(election.candidates, fn candidate -> maybe_increment_votes(candidate, id == candidate.id) end)
-    %{election | candidates: candidates}
+  def update(election, ["n" <> _ | args]) do
+    name = Enum.join(args, " ")
+    Map.put(election, :name, name)
   end
 
-  def update(election, _errors), do: election
-
-  defp maybe_increment_votes(candidate, _increment_vote = true) do
-    %{candidate | votes: candidate.votes + 1}
+  def update(election, ["v" <> _, id]) do
+    vote(election, Integer.parse(id))
   end
 
-  defp maybe_increment_votes(candidate, _increment_vote = false), do: candidate
+   def update(_election, ["q" <> _]), do: :quit
+
+  defp vote(election, {id, ""}) do
+    candidates = Enum.map(election.candidates, &maybe_inc_vote(&1, id))
+    Map.put(election, :candidates, candidates)
+  end
+
+  defp vote(election, _errors), do: election
+
+  defp maybe_inc_vote(candidate, id) when is_integer(id) do
+    maybe_inc_vote(candidate, candidate.id == id)
+  end
+
+  defp maybe_inc_vote(candidate, _inc_vote = false), do: candidate
+
+  defp maybe_inc_vote(candidate, _inc_vote = true) do
+    Map.update!(candidate, :votes, &(&1 + 1))
+  end
+
+  def view_header(election) do
+    [
+      "Election for: #{election.name}\n"
+    ]
+  end
+
+  def view_body(election) do
+    election.candidates
+    |> sort_candidates_by_votes_desc()
+    |> candidates_to_strings()
+    |> prepend_candidates_header()
+  end
+
+  def view_footer() do
+    [
+      "\n",
+      "commands: (n)ame <election>, (a)dd <candidate>, (v)ote <id>, (q)uit\n"
+    ]
+  end
 
   def view(election) do
     [
@@ -47,21 +113,23 @@ defmodule Election do
     ]
   end
 
-  defp view_header(election) do
+  defp prepend_candidates_header(candidates) do
     [
-      "Election for: #{election.name}\n",
-      "id\tvotes\tname\n",
-      "------------------------------\n"
+      "ID\tVotes\tName\n",
+      "-----------------------------\n"
+      | candidates
     ]
   end
 
-  defp view_body(election) do
-    candidates = Enum.sort(election.candidates, &(&1.votes >= &2.votes))
-    Enum.map(candidates, fn candidate -> "#{candidate.id}\t#{candidate.votes}\t#{candidate.name}\n" end)
+  defp candidates_to_strings(candidates) do
+    candidates
+    |> Enum.map(fn %{id: id, name: name, votes: votes} ->
+      "#{id}\t#{votes}\t#{name}\n"
+    end)
   end
 
-  defp view_footer do
-    "\ncommands: (n)ame <election>, (a)dd <candidate>, (v)ote <id>, (q)uit\n"
+  defp sort_candidates_by_votes_desc(candidates) do
+    candidates
+    |> Enum.sort(&(&1.votes >= &2.votes))
   end
-
 end
